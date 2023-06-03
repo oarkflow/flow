@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	
+
 	"github.com/oarkflow/asynq"
 )
 
@@ -96,5 +96,16 @@ func (e *StoreData) ProcessTask(ctx context.Context, task *asynq.Task) asynq.Res
 	var data map[string]any
 	json.Unmarshal(task.Payload(), &data)
 	fmt.Println("Storing Data...", data)
+	return asynq.Result{Data: task.Payload(), Ctx: ctx}
+}
+
+type InAppNotification struct {
+	Operation
+}
+
+func (e *InAppNotification) ProcessTask(ctx context.Context, task *asynq.Task) asynq.Result {
+	var data map[string]any
+	json.Unmarshal(task.Payload(), &data)
+	fmt.Println("In App notification...", data)
 	return asynq.Result{Data: task.Payload(), Ctx: ctx}
 }

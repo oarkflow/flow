@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
-	
+
 	"github.com/oarkflow/asynq"
 	"github.com/oarkflow/xid"
 	"golang.org/x/sync/errgroup"
@@ -123,7 +122,6 @@ func (n *node) loop(ctx context.Context, payload []byte) ([]any, error) {
 }
 
 func (n *node) ProcessTask(ctx context.Context, task *asynq.Task) asynq.Result {
-	fmt.Println(n.id, n.edges)
 	result := n.handler.ProcessTask(ctx, task)
 	if result.Error != nil {
 		return result
@@ -138,7 +136,7 @@ func (n *node) ProcessTask(ctx context.Context, task *asynq.Task) asynq.Result {
 		result.Data = bt
 		result.Error = err
 	}
-	
+
 	return result
 }
 
@@ -228,7 +226,7 @@ func (f *Flow) processNode(ctx context.Context, task *asynq.Task, n *node) asynq
 			}
 		}
 	}
-	edgeResult := make(map[string]asynq.Result)
+	edgeResult := make(map[string][]byte)
 	for _, edge := range n.edges {
 		if nd, ok := f.nodes[edge]; ok {
 			newTask := asynq.NewTask(edge, result.Data, asynq.FlowID(n.flow.ID), asynq.Queue(edge))
@@ -236,19 +234,36 @@ func (f *Flow) processNode(ctx context.Context, task *asynq.Task, n *node) asynq
 			if r.Error != nil {
 				return r
 			}
-			edgeResult[edge+"_result"] = r
+			edgeResult[edge+"_result"] = r.Data
 		}
 	}
 	totalResults := len(edgeResult)
 	for _, r := range edgeResult {
 		if totalResults == 1 {
-			return r
+			result.Data = r
+			return result
 		}
 	}
 	if totalResults == 0 {
 		return result
 	}
-	fmt.Println("DATA", result.String())
+	edgeResult[n.id+"_result"] = result.Data
+	data := make(map[string]any)
+	for key, val := range edgeResult {
+		d, _, err := AsMap(val)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		data[key] = d
+	}
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		result.Error = err
+		return result
+	}
+	result.Data = bytes
 	return result
 }
 
@@ -316,4 +331,20 @@ func mergeMap(map1 map[string]any, map2 map[string]any) map[string]any {
 		}
 	}
 	return map1
+}
+
+func AsMap(payload []byte) (data any, slice bool, err error) {
+	var mp map[string]any
+	err = json.Unmarshal(payload, &mp)
+	if err != nil {
+		var mps []map[string]any
+		err = json.Unmarshal(payload, &mps)
+		if err == nil {
+			data = mps
+			slice = true
+		}
+	} else {
+		data = mp
+	}
+	return
 }

@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	
+
 	"github.com/oarkflow/asynq"
 	"github.com/oarkflow/xid"
-	
+
 	"github.coom/oarkflow/flow"
 )
 
@@ -26,6 +26,7 @@ func send(mode asynq.Mode) {
 	f.AddHandler("condition", &Condition{Operation{Type: "condition"}})
 	f.AddHandler("store:data", &StoreData{Operation{Type: "process"}})
 	f.AddHandler("send:sms", &SendSms{Operation{Type: "process"}})
+	f.AddHandler("notification", &InAppNotification{Operation{Type: "process"}})
 	f.AddBranch("condition", map[string]string{
 		"pass": "email:deliver",
 		"fail": "store:data",
@@ -34,6 +35,7 @@ func send(mode asynq.Mode) {
 	f.AddLoop("loop", "prepare:email")
 	f.AddEdge("prepare:email", "condition")
 	f.AddEdge("store:data", "send:sms")
+	f.AddEdge("store:data", "notification")
 	data := []map[string]any{
 		{
 			"phone": "+123456789",
